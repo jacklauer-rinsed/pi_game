@@ -1,0 +1,24 @@
+<h1>Pi Memorization Game</h1>
+
+<div class="card">
+  <h2 class="card-title">How to Play</h2>
+  <p style="margin-bottom: 1rem;">Test your memory by memorizing digits of π (pi). The more digits you can recall correctly, the higher your score!</p>
+  
+  <ol style="padding-left: 1.5rem; margin-bottom: 1.5rem;">
+    <li style="margin-bottom: 0.5rem;">Choose how many digits of pi you want to memorize</li>
+    <li style="margin-bottom: 0.5rem;">Study the digits shown on the screen</li>
+    <li style="margin-bottom: 0.5rem;">When you're ready, type the digits you remember (including the decimal point)</li>
+    <li style="margin-bottom: 0.5rem;">Click "Check" to see if you got it right</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Start a Game</h2>
+  <p style="margin-bottom: 1rem;">Choose how many digits you want to memorize:</p>
+  
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">
+    <% [10, 25, 50, 100].each do |length| %>
+      <%= link_to "#{length} digits", games_play_path(length: length), class: "btn", style: "text-align: center;" %>
+    <% end %>
+  </div>
+</div>

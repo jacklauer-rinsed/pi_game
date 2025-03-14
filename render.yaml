@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: pi-game
+    env: ruby
+    buildCommand: bundle install && bundle exec rake assets:precompile
+    startCommand: bundle exec puma -C config/puma.rb
+    envVars:
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RAILS_ENV
+        value: production
+      - key: DATABASE_URL
+        value: sqlite3:///storage/production.sqlite3
+      - key: RAILS_LOG_TO_STDOUT
+        value: true

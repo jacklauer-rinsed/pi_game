@@ -1,0 +1,333 @@
+<h1>Pi Memorization Game</h1>
+
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2 class="card-title" style="margin-bottom: 0;">Memorize the First <%= @target_length %> Digits of Pi</h2>
+    <% if @high_score %>
+      <div style="background-color: #fef9c3; border: 1px solid #fbbf24; border-radius: 0.375rem; padding: 0.5rem; color: #854d0e;">
+        <span style="font-weight: 600;">High Score:</span> <%= @high_score %> digits
+      </div>
+    <% end %>
+  </div>
+  
+  <div style="background-color: #f3f4f6; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem;">
+    <p style="font-family: monospace; font-size: 1.25rem; letter-spacing: 0.05em; text-align: center;" id="piDigits">
+      <%= @digits %>
+    </p>
+  </div>
+  
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <button type="button" id="hideShowBtn" style="background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer;">
+      Hide Digits
+    </button>
+    
+    <div>
+      <span id="timer" style="font-family: monospace; font-size: 1.25rem;">00:00</span>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="margin-bottom: 1.5rem;">
+    <label for="actual_input" style="display: block; color: #4b5563; margin-bottom: 0.5rem;">Enter the digits you remember:</label>
+    
+    <div style="display: flex; align-items: center; width: 100%;">
+      <!-- Fixed "3." prefix -->
+      <div style="font-family: monospace; font-size: 1.5rem; padding: 0.6rem 0.5rem; color: #10b981; font-weight: bold;">3.</div>
+      
+      <!-- Actual input box that users type into -->
+      <input type="text" id="actual_input" 
+             style="flex-grow: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-family: monospace; font-size: 1.25rem; letter-spacing: 0.05em;" 
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+    
+    <!-- Hidden input for form submission -->
+    <input type="hidden" id="user_input" value="<%= @user_input %>">
+  </div>
+  
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div id="feedback" style="color: #4b5563; font-weight: 600;"></div>
+    <div id="characters_count" style="color: #4b5563;"></div>
+  </div>
+  
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <button type="button" id="resetBtn" class="btn" style="background-color: #6b7280; cursor: pointer;">Reset</button>
+      <button type="button" id="checkBtn" class="btn" style="background-color: #10b981; cursor: pointer; margin-left: 0.5rem;">Check All</button>
+    </div>
+    <%= link_to "Back to Home", root_path, style: "color: #2563eb; text-decoration: none;" %>
+  </div>
+  
+  <div id="result_container" style="margin-top: 1.5rem; display: none;"></div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // DOM elements
+    const piDigits = document.getElementById('piDigits');
+    const hideShowBtn = document.getElementById('hideShowBtn');
+    const actualInput = document.getElementById('actual_input');
+    const userInput = document.getElementById('user_input');
+    const feedback = document.getElementById('feedback');
+    const charactersCount = document.getElementById('characters_count');
+    const resetBtn = document.getElementById('resetBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const timerElement = document.getElementById('timer');
+    const resultContainer = document.getElementById('result_container');
+    
+    // Game state
+    let digitsVisible = true;
+    let userHasStarted = false;
+    let startTime;
+    let timerInterval;
+    const maxDigits = <%= @target_length %>;
+    const originalPiDigits = '<%= j @digits %>';
+    const correctDigits = originalPiDigits.replace(/\s+/g, '');
+    const correctDigitsAfterDecimal = correctDigits.substring(2); // Skip the "3."
+    
+    // Clear any previous input value
+    actualInput.value = '';
+    
+    // Setup event listeners
+    hideShowBtn.addEventListener('click', toggleVisibility);
+    actualInput.addEventListener('input', handleInput); // This captures all input events
+    actualInput.addEventListener('keydown', function(e) {
+      // If this is the first keypress, hide digits and start timer
+      if (digitsVisible && !userHasStarted && e.key && e.key.length === 1) {
+        console.log("First keypress detected - hiding digits and starting timer");
+        toggleVisibility();
+      }
+    });
+    resetBtn.addEventListener('click', resetGame);
+    checkBtn.addEventListener('click', checkAnswer);
+    
+    // Set initial focus
+    setTimeout(() => {
+      actualInput.focus();
+    }, 100);
+    updateCharacterCount('');
+    
+    // Toggle visibility of pi digits
+    function toggleVisibility() {
+      if (digitsVisible) {
+        // Hide digits
+        piDigits.innerHTML = '<span id="revealText" style="cursor: pointer; color: #4b5563;">[Hidden] Click to reveal</span>';
+        hideShowBtn.textContent = 'Show Digits';
+        startTimer();
+        userHasStarted = true;
+        
+        // Make reveal text clickable too
+        document.getElementById('revealText').addEventListener('click', toggleVisibility);
+      } else {
+        // Show digits
+        piDigits.textContent = originalPiDigits;
+        hideShowBtn.textContent = 'Hide Digits';
+        stopTimer();
+      }
+      digitsVisible = !digitsVisible;
+      actualInput.focus();
+    }
+    
+    // Handle input in the text field
+    function handleInput(e) {
+      // Only start timer and hide digits on actual typing, not on programmatic changes
+      if (digitsVisible && !userHasStarted && e && e.inputType && 
+          (e.inputType.includes('insert') || e.inputType.includes('delete'))) {
+        // We have actual user typing - hide digits and start timer
+        console.log("User started typing - hiding digits and starting timer");
+        toggleVisibility();
+      }
+      
+      // Limit input to max length
+      if (actualInput.value.length > maxDigits) {
+        actualInput.value = actualInput.value.substring(0, maxDigits);
+      }
+      
+      // Update hidden input for form submission
+      userInput.value = '3.' + actualInput.value;
+      
+      // Update color based on correctness
+      colorCodeInput();
+      
+      // Update character count and check digits
+      verifyInput();
+    }
+    
+    // Set text color based on input correctness
+    function colorCodeInput() {
+      let allCorrect = true;
+      
+      // Check each character against correct digits
+      for (let i = 0; i < actualInput.value.length; i++) {
+        if (i >= correctDigitsAfterDecimal.length || actualInput.value[i] !== correctDigitsAfterDecimal[i]) {
+          allCorrect = false;
+          break;
+        }
+      }
+      
+      // Update text color
+      actualInput.style.color = allCorrect ? '#10b981' : '#ef4444';
+    }
+    
+    // Verify input and update feedback
+    function verifyInput() {
+      // Update digit counter
+      updateCharacterCount(actualInput.value);
+      
+      // Check correctness for feedback
+      let allCorrect = true;
+      let correctCount = 0;
+      
+      // Check each digit
+      for (let i = 0; i < actualInput.value.length; i++) {
+        if (i >= correctDigitsAfterDecimal.length || actualInput.value[i] !== correctDigitsAfterDecimal[i]) {
+          allCorrect = false;
+          break;
+        }
+        correctCount++;
+      }
+      
+      // Update feedback message
+      if (actualInput.value.length === 0) {
+        feedback.textContent = '';
+      } else if (allCorrect) {
+        feedback.textContent = 'Correct so far!';
+        feedback.style.color = '#15803d';
+        
+        // Check for complete match
+        if (allCorrect && actualInput.value.length === maxDigits) {
+          feedback.textContent = 'Perfect! You got all the digits correct!';
+          const finalTime = stopTimer(true);
+          showResult(true, correctCount, finalTime);
+        }
+      } else {
+        feedback.textContent = 'Try a different digit';
+        feedback.style.color = '#b91c1c';
+      }
+    }
+    
+    // Reset game state
+    function resetGame() {
+      // Reset input fields
+      actualInput.value = '';
+      userInput.value = '3.';
+      feedback.textContent = '';
+      actualInput.style.color = '#10b981'; // Reset to green
+      resultContainer.style.display = 'none';
+      updateCharacterCount('');
+      
+      // Reset timer to 00:00
+      stopTimer();
+      
+      // Reset game state variables
+      userHasStarted = false;
+      
+      // Show digits again if they were hidden
+      if (!digitsVisible) {
+        toggleVisibility(); // This will show digits and stop timer
+      }
+      
+      // Focus the input
+      actualInput.focus();
+    }
+    
+    // Check answer manually
+    function checkAnswer() {
+      const correctAnswer = correctDigitsAfterDecimal.substring(0, maxDigits);
+      const isCorrect = actualInput.value === correctAnswer;
+      
+      // Count correct digits
+      let correctCount = 0;
+      for (let i = 0; i < actualInput.value.length && i < correctDigitsAfterDecimal.length; i++) {
+        if (actualInput.value[i] === correctDigitsAfterDecimal[i]) {
+          correctCount++;
+        }
+      }
+      
+      // Stop timer if correct
+      const finalTime = isCorrect ? stopTimer(true) : null;
+      
+      showResult(isCorrect, correctCount, finalTime);
+    }
+    
+    // Show result message
+    function showResult(isCorrect, correctCount, timeInfo) {
+      resultContainer.style.display = 'block';
+      resultContainer.style.padding = '1rem';
+      resultContainer.style.borderRadius = '0.375rem';
+      resultContainer.style.backgroundColor = isCorrect ? '#dcfce7' : '#fee2e2';
+      
+      let timeMessage = '';
+      if (isCorrect && timeInfo) {
+        timeMessage = `<p style="color: #15803d; margin-top: 0.5rem;">Your time: <strong>${timeInfo.timeString}</strong></p>`;
+        
+        // Calculate digits per minute
+        const digitsPerMinute = timeInfo.totalSeconds > 0 
+          ? Math.round((maxDigits / timeInfo.totalSeconds) * 60) 
+          : maxDigits;
+          
+        timeMessage += `<p style="color: #15803d; margin-top: 0.25rem;">Speed: <strong>${digitsPerMinute} digits per minute</strong></p>`;
+      }
+      
+      const message = isCorrect ? 
+        `<h3 style="font-size: 1.125rem; font-weight: bold; color: #15803d; margin-bottom: 0.75rem;">Correct!</h3>
+         <p>Congratulations! You correctly memorized ${maxDigits} digits of π!</p>
+         ${timeMessage}
+         <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+           <a href="/games/play?length=<%= @target_length %>" class="btn">Try Again</a>
+           <a href="/games/play?length=<%= [@target_length + 10, 100].min %>" class="btn" style="background-color: #10b981;">
+             Try <%= [@target_length + 10, 100].min %> Digits
+           </a>
+         </div>` :
+        `<h3 style="font-size: 1.125rem; font-weight: bold; color: #b91c1c; margin-bottom: 0.75rem;">Not quite right</h3>
+         <p>You got ${correctCount} digits correct. Try again!</p>
+         <p style="color: #6b7280; font-style: italic; margin-top: 0.5rem;">Tip: Take your time and try to memorize in chunks of 3-5 digits.</p>`;
+      
+      resultContainer.innerHTML = message;
+    }
+    
+    // Update character count display
+    function updateCharacterCount(input) {
+      charactersCount.textContent = `${input.length}/${maxDigits} digits`;
+    }
+    
+    // Timer functions
+    function startTimer() {
+      startTime = new Date();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+    
+    function stopTimer(returnTime = false) {
+      if (timerInterval) clearInterval(timerInterval);
+      
+      if (returnTime && startTime) {
+        const now = new Date();
+        const elapsedSeconds = Math.floor((now - startTime) / 1000);
+        const minutes = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+        const seconds = (elapsedSeconds % 60).toString().padStart(2, '0');
+        const timeString = `${minutes}:${seconds}`;
+        
+        timerElement.textContent = timeString;
+        
+        return {
+          timeString: timeString,
+          totalSeconds: elapsedSeconds
+        };
+      } else {
+        timerElement.textContent = '00:00';
+        return null;
+      }
+    }
+    
+    function updateTimer() {
+      if (!startTime) return;
+      
+      const now = new Date();
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
+      const minutes = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+      const seconds = (elapsedSeconds % 60).toString().padStart(2, '0');
+      timerElement.textContent = `${minutes}:${seconds}`;
+    }
+  });
+</script>
